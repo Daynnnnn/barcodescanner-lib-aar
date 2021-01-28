@@ -24,8 +24,6 @@ import android.hardware.Camera;
 import android.os.Handler;
 import android.util.Log;
 import android.view.SurfaceHolder;
-import android.view.WindowManager;
-
 import com.google.zxing.PlanarYUVLuminanceSource;
 import com.google.zxing.client.android.camera.open.OpenCamera;
 import com.google.zxing.client.android.camera.open.OpenCameraInterface;
@@ -39,6 +37,7 @@ import java.io.IOException;
  *
  * @author dswitkin@google.com (Daniel Switkin)
  */
+@SuppressWarnings("deprecation") // camera APIs
 public final class CameraManager {
 
   private static final String TAG = CameraManager.class.getSimpleName();
@@ -60,8 +59,6 @@ public final class CameraManager {
   private int requestedCameraId = OpenCameraInterface.NO_REQUESTED_CAMERA;
   private int requestedFramingRectWidth;
   private int requestedFramingRectHeight;
-  private WindowManager windowManager;
-
   /**
    * Preview frames are delivered here, which we pass on to the registered handler. Make sure to
    * clear the handler so it will only receive one message.
@@ -69,12 +66,11 @@ public final class CameraManager {
   private final PreviewCallback previewCallback;
 
   public CameraManager(Context context) {
-    this.context = context.getApplicationContext();
+    this.context = context;
     this.configManager = new CameraConfigurationManager(context);
     previewCallback = new PreviewCallback(configManager);
-    windowManager = (WindowManager) this.context.getSystemService(Context.WINDOW_SERVICE);
   }
-  
+
   /**
    * Opens the camera driver and initializes the hardware parameters.
    *
@@ -180,25 +176,23 @@ public final class CameraManager {
         configManager.getTorchState(camera.getCamera());
   }
 
-    /**
-     * Convenience method for {@link com.google.zxing.client.android.CaptureActivity}
-     *
-     * @param newSetting if {@code true}, light should be turned on if currently off. And vice versa.
-     */
+  /**
+   * Convenience method for {@link com.google.zxing.client.android.CaptureActivity}
+   *
+   * @param newSetting if {@code true}, light should be turned on if currently off. And vice versa.
+   */
   public synchronized void setTorch(boolean newSetting) {
     OpenCamera theCamera = camera;
-    if (theCamera != null) {
-      if (newSetting != configManager.getTorchState(theCamera.getCamera())) {
-        boolean wasAutoFocusManager = autoFocusManager != null;
-        if (wasAutoFocusManager) {
-          autoFocusManager.stop();
-          autoFocusManager = null;
-        }
-        configManager.setTorch(theCamera.getCamera(), newSetting);
-        if (wasAutoFocusManager) {
-          autoFocusManager = new AutoFocusManager(context, theCamera.getCamera());
-          autoFocusManager.start();
-        }
+    if (theCamera != null && newSetting != configManager.getTorchState(theCamera.getCamera())) {
+      boolean wasAutoFocusManager = autoFocusManager != null;
+      if (wasAutoFocusManager) {
+        autoFocusManager.stop();
+        autoFocusManager = null;
+      }
+      configManager.setTorch(theCamera.getCamera(), newSetting);
+      if (wasAutoFocusManager) {
+        autoFocusManager = new AutoFocusManager(context, theCamera.getCamera());
+        autoFocusManager.start();
       }
     }
   }
@@ -243,11 +237,10 @@ public final class CameraManager {
       int leftOffset = (screenResolution.x - width) / 2;
       int topOffset = (screenResolution.y - height) / 2;
       framingRect = new Rect(leftOffset, topOffset, leftOffset + width, topOffset + height);
-      Log.d(TAG, "Calculated framing rect: " + framingRect);
     }
     return framingRect;
   }
-  
+
   private static int findDesiredDimensionInRange(int resolution, int hardMin, int hardMax) {
     int dim = 5 * resolution / 8; // Target 5/8 of each dimension
     if (dim < hardMin) {
@@ -300,7 +293,7 @@ public final class CameraManager {
     return framingRectInPreview;
   }
 
-  
+
   /**
    * Allows third party apps to specify the camera ID, rather than determine
    * it automatically based on available cameras and their orientation.
